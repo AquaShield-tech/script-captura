@@ -18,7 +18,7 @@ import libusb_package
 
 banco = mysql.connector.connect(
     user='root',
-    password='',
+    password='@K8m1m4v3a12',
     host='localhost',
     database='aquashield'
 )
@@ -74,7 +74,7 @@ def verificarMaquina():
 
     comando = """
         INSERT INTO maquina
-        (numeracao, IPMac, fkEmpresa)
+        (numeracao, IPMac, fkETA)
         VALUES (%s, %s, %s)
     """
 
