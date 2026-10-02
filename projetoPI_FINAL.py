@@ -8,17 +8,9 @@ import usb.core
 import usb.util
 import libusb_package
 
-# Grupo 4
-
-# Danilo 
-# Alicia 
-# Rodrigo 
-# Melissa 
-# Matheus Bernardino
-
 banco = mysql.connector.connect(
     user='root',
-    password='@Timao123',
+    password='',
     host='localhost',
     database='aquashield'
 )
