@@ -18,7 +18,7 @@ import libusb_package
 
 banco = mysql.connector.connect(
     user='root',
-    password='@K8m1m4v3a12',
+    password='@Timao123',
     host='localhost',
     database='aquashield'
 )
@@ -59,6 +59,21 @@ def verificarMaquina():
         return resultado[0]
 
     comando = """
+        SELECT idETA
+        FROM ETA
+        LIMIT 1
+    """
+
+    cursor.execute(comando)
+    resultadoETA = cursor.fetchone()
+
+    if resultadoETA == None:
+        print("Nenhuma ETA cadastrada!")
+        return None
+
+    idETA = resultadoETA[0]
+
+    comando = """
         SELECT MAX(numeracao)
         FROM maquina
     """
@@ -78,11 +93,10 @@ def verificarMaquina():
         VALUES (%s, %s, %s)
     """
 
-    cursor.execute(comando, (novaNumeracao, macSemPontuacao, 1))
+    cursor.execute(comando, (novaNumeracao, macSemPontuacao, idETA))
     banco.commit()
 
     return cursor.lastrowid
-
 
 def obterNumeracaoMaquina(idMaquina):
     comando = """
