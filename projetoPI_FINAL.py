@@ -1,4 +1,5 @@
 import platform
+import os
 import socket
 import time
 import uuid
@@ -17,20 +18,23 @@ banco = mysql.connector.connect(
 )
 cursor = banco.cursor()
 
-# Deixe 0 para nao gravar porcentagem de rede sem referencia.
-#Velocidade maxima que a rede atinge 
-VELOCIDADE_REDE_MBPS = 1000
 INTERVALO_CAPTURA = 5
+
+# Limites iniciais dos alertas (podem ser ajustados conforme os testes)
+LIMITE_CPU = 80.0
+LIMITE_MEMORIA = 80.0
+LIMITE_ATIVIDADE_DISCO = 80.0
+LIMITE_ARMAZENAMENTO_DISCO = 90.0
 
 #macNumero = uuid.getnode() - pega o endereço Mac da Máquina
 macNumero = uuid.getnode()
 macFormatado = ""
 for i in range(5, -1, -1):
-    parteMacTexto = "{:02x}".format((macNumero >> (i * 8)) & 0xff)
-    if macFormatado == "":
-        macFormatado = parteMacTexto
-    else:
-        macFormatado += ":" + parteMacTexto
+        parteMacTexto = "{:02x}".format((macNumero >> (i * 8)) & 0xff)
+        if macFormatado == "":
+            macFormatado = parteMacTexto
+        else:
+            macFormatado += ":" + parteMacTexto
 macSemPontuacao = macFormatado.replace(":", "")
 
 
@@ -199,45 +203,6 @@ def salvarLeitura(idMaquina, idComponente, valor):
     )
 
 
-def capturarRedePercentual():
-    if VELOCIDADE_REDE_MBPS <= 0:
-        return None, "Configure VELOCIDADE_REDE_MBPS no inicio do codigo."
-
-    #Descobre quantos bytes foram transferidos em 1 segundo
-    antes = psutil.net_io_counters(pernic=True)
-    time.sleep(1)
-    depois = psutil.net_io_counters(pernic=True)
-    estatisticas = psutil.net_if_stats()
-    maiorPercentual = 0
-    encontrouInterface = False
-
-    for nomeInterface, contadorDepois in depois.items():
-        #Ignora interfaces desativadas
-        if nomeInterface not in antes or nomeInterface not in estatisticas:
-            continue
-        
-        if not estatisticas[nomeInterface].isup:
-            continue
-        nomeMinusculo = nomeInterface.lower()
-        if nomeMinusculo == "lo" or "loopback" in nomeMinusculo:
-            continue
-
-        contadorAntes = antes[nomeInterface]
-#Calcula quantos bytes foram transferidos por segundo
-        bytesPorSegundo = (
-            contadorDepois.bytes_sent - contadorAntes.bytes_sent
-            + contadorDepois.bytes_recv - contadorAntes.bytes_recv
-        )
-        mbps = (bytesPorSegundo * 8) / 1000000
-        percentual = min((mbps / VELOCIDADE_REDE_MBPS) * 100, 100)
-        maiorPercentual = max(maiorPercentual, percentual)
-        encontrouInterface = True
-
-    if not encontrouInterface:
-        return None, "Nenhuma interface de rede ativa foi encontrada."
-    return round(maiorPercentual, 2), None
-    
-
 def capturarAtividadeDisco():
     try:
         resultado = subprocess.run(
@@ -269,12 +234,42 @@ def capturarAtividadeDisco():
         return None
 
 
+def gerarAlertas(usoCPU, usoMemoria, atividadeDisco, armazenamentoDisco, espacoLivreGB):
+    alertasEncontrados = False
+
+    if usoCPU is not None and usoCPU >= LIMITE_CPU:
+        print("\\nALERTA: Uso elevado da CPU (" + str(round(usoCPU, 2)) + "%).")
+        print("Motivo: o processador esta trabalhando com carga alta e pode deixar o sistema lento.")
+        alertasEncontrados = True
+
+    if usoMemoria is not None and usoMemoria >= LIMITE_MEMORIA:
+        print("\\nALERTA: Uso elevado da memoria RAM (" + str(round(usoMemoria, 2)) + "%).")
+        print("Motivo: pouca memoria pode ficar disponivel para os programas, causando lentidao.")
+
+        alertasEncontrados = True
+
+    if armazenamentoDisco is not None and armazenamentoDisco >= LIMITE_ARMAZENAMENTO_DISCO:
+        print("\\nALERTA: Pouco espaco livre no disco (" + str(round(armazenamentoDisco, 2)) + "% ocupado).")
+        print("Motivo: o disco esta quase cheio; isso pode impedir salvar arquivos e prejudicar o funcionamento de programas.")
+        if espacoLivreGB is not None:
+            print("Espaco livre restante: " + str(round(espacoLivreGB, 2)) + " GB.")
+        alertasEncontrados = True
+
+    if atividadeDisco is not None and atividadeDisco >= LIMITE_ATIVIDADE_DISCO:
+        print("\\nALERTA: Atividade elevada do disco (" + str(round(atividadeDisco, 2)) + "%).")
+        print("Motivo: o disco esta ocupado por grande parte do tempo, podendo atrasar leituras e gravacoes.")
+        alertasEncontrados = True
+
+    if not alertasEncontrados:
+        print("\\nNenhum alerta foi identificado nesta captura.")
+
+
 def capturarDados():
     idMaquina = verificarMaquina()
     if idMaquina is None:
         return
 
-    print("\n================================")
+    print("\\n================================")
     print("       CAPTURA AQUASHIELD       ")
     print("================================")
     print("Maquina:", socket.gethostname())
@@ -282,32 +277,56 @@ def capturarDados():
 
     usoCPU = psutil.cpu_percent(interval=1)
     usoMemoria = psutil.virtual_memory().percent
-    usoDisco = capturarAtividadeDisco()
 
-    if usoDisco is None:
+    # Armazenamento: porcentagem ocupada e espaco livre na unidade do sistema.
+    try:
+        disco = psutil.disk_usage(os.path.abspath(os.sep))
+        armazenamentoDisco = disco.percent
+        espacoLivreGB = disco.free / (1024 ** 3)
+    except OSError as erro:
+        print("Nao foi possivel consultar o espaco do disco:", erro)
+        armazenamentoDisco = None
+        espacoLivreGB = None
+
+    # Atividade: percentual de tempo em que o disco fica ocupado (Windows).
+    atividadeDisco = capturarAtividadeDisco()
+    if atividadeDisco is None:
         print("Nao foi possivel consultar a atividade do disco.")
 
-    usoRede, erroRede = capturarRedePercentual()
+    print("Uso da CPU: " + str(round(usoCPU, 2)) + "%")
+    print("Uso da Memoria: " + str(round(usoMemoria, 2)) + "%")
+
     capturas = [
         ("Uso da CPU", usoCPU),
         ("Uso da Memoria", usoMemoria),
-        ("Uso do Disco", usoDisco),
-        ("Uso da Rede", usoRede)
+        ("Uso do Disco", armazenamentoDisco),
+        ("Atividade do Disco", atividadeDisco)
     ]
 
     try:
         for nomeComponente, percentual in capturas:
             if percentual is None:
                 print(nomeComponente + ": nao capturado.")
-                if nomeComponente == "Uso da Rede" and erroRede:
-                    print("Motivo:", erroRede)
                 continue
+
             idComponente = obterIdComponente(nomeComponente)
             salvarLeitura(idMaquina, idComponente, percentual)
             print(nomeComponente + ": " + str(round(percentual, 2)) + "%")
+
+        if espacoLivreGB is not None:
+            print("Espaco livre no disco: " + str(round(espacoLivreGB, 2)) + " GB")
+
         banco.commit()
-        print("\nCapturas salvas no banco de dados.")
-   
+
+        print("\\n Verificação de alertas")
+        print("Limite CPU: " + str(LIMITE_CPU) + "%")
+        print("Limite memoria RAM: " + str(LIMITE_MEMORIA) + "%")
+        print("Limite armazenamento ocupado: " + str(LIMITE_ARMAZENAMENTO_DISCO) + "%")
+        print("Limite atividade do disco: " + str(LIMITE_ATIVIDADE_DISCO) + "%")
+
+        gerarAlertas(usoCPU, usoMemoria, atividadeDisco, armazenamentoDisco, espacoLivreGB)
+        print("\\nCapturas salvas no banco de dados.")
+
     except mysql.connector.Error as erro:
         banco.rollback()
         print("Erro ao salvar a captura:", erro)
@@ -341,7 +360,7 @@ def visualizarDados():
         (idMaquina,)
     )
     registros = cursor.fetchall()
-    print("\n========== DADOS CAPTURADOS ==========")
+    print("\n Dados Capturados")
     if not registros:
         print("Nenhum dado capturado para esta maquina.")
         return
@@ -395,10 +414,10 @@ def gerarGrafico():
     #Desenha as linhas do Gráfico
     #O for vai percorrer o dicionário e vai organizar os itens no gráfico
     for nome, valores in dados.items():
-    #valores["datas"], Define as posições no eixo horizontal (y)#
-    # valores["valores"], Define as posições do eixo verticar (x)#
-    # marker="o", Desenha um circulo em cada ponto #
-    # markersize=3, Define o tamnho dos circulos #
+    #valores["datas"], Define as posições no eixo horizontal (y)
+    # valores["valores"], Define as posições do eixo verticar (x)
+    # marker="o", Desenha um circulo em cada ponto 
+    # markersize=3, Define o tamnho dos circulos 
     # label=nome) Define o nome que vai aparecer na legenda 
         plt.plot(valores["datas"], valores["valores"], marker="o", markersize=3, label=nome)
     plt.title("Uso dos componentes ao longo do tempo")
