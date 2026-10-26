@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 
 banco = mysql.connector.connect(
     user="root",
-    password="@Timao123",
+    password="",
     host="localhost",
     database="aquashield"
 )
