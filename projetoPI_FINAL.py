@@ -1,14 +1,13 @@
-import platform
-import os
-import socket
-import time
-import uuid
-from datetime import datetime
-import subprocess
+import platform #captura dados do sistema operacional (Windows ou Linux)
+import os #Serve como ponte para interagir com o sistema operacional (Windows ou Linux)
+import socket #trabalha com conexões de rede e obtem informações relacionadas ao computador.
+import time #trabalha com tempo e pausas na execução do programa.
+import uuid #gera e trabalha com identificadores únicos.
+from datetime import datetime #Data e hora
+import subprocess #executar outros programas e comandos a partir do Python.
 
-import mysql.connector
-import psutil
-import matplotlib.pyplot as plt
+import mysql.connector #Conexão Mysql
+import psutil #obtem informações sobre os recursos e o desempenho do sistema operacional.
 
 
 banco = mysql.connector.connect(
@@ -52,7 +51,6 @@ macSemPontuacao = macFormatado.replace(":", "")
 
 
 # Obtém o ID da unidade de medida de porcentagem
-
 def obterIdMedidaPorcentagem():
     cursor.execute(
         "SELECT id FROM Medida WHERE unidade_medida = %s LIMIT 1",
@@ -75,7 +73,6 @@ def obterIdMedidaPorcentagem():
 
 
 # Obtém o ID do alerta padrão
-
 def obterIdAlerta():
     cursor.execute("SELECT id FROM Definicao_Alerta LIMIT 1")
 
@@ -95,7 +92,6 @@ def obterIdAlerta():
 
 
 # Verifica se a máquina está cadastrada
-
 def verificarMaquina():
     cursor.execute(
         "SELECT id FROM Maquina WHERE mac_address = %s LIMIT 1",
@@ -435,7 +431,7 @@ def capturarDados():
 
     try:
         disco = psutil.disk_usage(os.path.abspath(os.sep))
-
+        #O os.path.abspath(os.sep) identifica o caminho da raiz do sistema de arquivos.
         armazenamentoDisco = disco.percent
 
         espacoLivreGB = disco.free / (1024 ** 3)
@@ -577,73 +573,6 @@ def visualizarDados():
             str(linha[2]) + " " + linha[3]
         )
 
-
-# Gera gráficos com as últimas 100 leituras
-
-def gerarGrafico():
-    idMaquina = verificarMaquina()
-
-    if idMaquina is None:
-        return
-
-    cursor.execute(
-        """
-        SELECT tc.tipo, l.data_hora, l.valor
-        FROM Leitura l
-        INNER JOIN Configuracao cfg
-            ON l.configuracao_fk_maquina = cfg.fk_maquina
-            AND l.configuracao_fk_componente = cfg.fk_componente
-        INNER JOIN Componentes c
-            ON cfg.fk_componente = c.id
-        INNER JOIN Tipo_Componente tc
-            ON c.fk_tipoComponente = tc.id
-        WHERE cfg.fk_maquina = %s
-        ORDER BY l.data_hora DESC
-        LIMIT 100
-        """,
-        (idMaquina,)
-    )
-
-    registros = cursor.fetchall()
-
-    if not registros:
-        print("Nao ha dados para gerar o grafico.")
-        return
-
-    dados = {}
-
-    for nome, dataHora, valor in registros:
-        if nome not in dados:
-            dados[nome] = {
-                "datas": [],
-                "valores": []
-            }
-
-        dados[nome]["datas"].append(dataHora)
-        dados[nome]["valores"].append(float(valor))
-
-    plt.figure(figsize=(12, 6))
-
-    for nome, valores in dados.items():
-        plt.plot(
-            valores["datas"],
-            valores["valores"],
-            marker="o",
-            markersize=3,
-            label=nome
-        )
-
-    plt.title("Uso dos componentes ao longo do tempo")
-    plt.xlabel("Data e hora")
-    plt.ylabel("Uso (%)")
-    plt.ylim(0, 100)
-    plt.grid(True)
-    plt.legend()
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    plt.show()
-
-
 # Realiza capturas automaticamente
 
 def capturaAutomatica():
@@ -671,8 +600,7 @@ try:
         print("\n1 - Capturar dados")
         print("2 - Captura automatica")
         print("3 - Ver dados")
-        print("4 - Gerar grafico")
-        print("5 - Sair")
+        print("4- Sair")
 
         opcao = input("Escolha uma opcao: ")
 
@@ -686,9 +614,6 @@ try:
             visualizarDados()
 
         elif opcao == "4":
-            gerarGrafico()
-
-        elif opcao == "5":
             print("Encerrando programa...")
             break
 
