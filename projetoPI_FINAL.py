@@ -12,7 +12,7 @@ import psutil #obtem informações sobre os recursos e o desempenho do sistema o
 
 banco = mysql.connector.connect(
     user="root",
-    password="",
+    password="@Timao123",
     host="localhost",
     database="aquashield"
 )
@@ -166,7 +166,7 @@ def obterIdComponente(nomeComponente):
 
     cursor.execute(
         """
-        SELECT id FROM Componentes
+        SELECT id FROM Componente
         WHERE fk_tipoComponente = %s
         LIMIT 1
         """,
@@ -182,7 +182,7 @@ def obterIdComponente(nomeComponente):
 
     cursor.execute(
         """
-        INSERT INTO Componentes
+        INSERT INTO Componente
         (valor_maximo, fk_tipoComponente, fk_definicaoAlerta)
         VALUES (%s, %s, %s)
         """,
@@ -195,7 +195,6 @@ def obterIdComponente(nomeComponente):
 
 
 # Garante que a máquina tenha uma configuração ativa para o componente
-
 def garantirConfiguracao(idMaquina, idComponente):
     cursor.execute(
         """
@@ -504,8 +503,8 @@ def capturarDados():
         banco.commit()
 
         print("\nLimites de alertas:")
-        print("CPU: atencao em 50%; critico acima de 80%.")
-        print("RAM: atencao em 60%; critico acima de 80%.")
+        print("Uso da CPU: atencao em 50%; critico acima de 80%.")
+        print("Uso da memória RAM: atencao em 60%; critico acima de 80%.")
         print("Armazenamento: atencao em 80%; critico em 90%.")
         print("Latencia do disco: atencao acima de 25 ms; critico acima de 50 ms.")
 
@@ -540,7 +539,7 @@ def visualizarDados():
         INNER JOIN Configuracao cfg
             ON l.configuracao_fk_maquina = cfg.fk_maquina
             AND l.configuracao_fk_componente = cfg.fk_componente
-        INNER JOIN Componentes c
+        INNER JOIN Componente c
             ON cfg.fk_componente = c.id
         INNER JOIN Tipo_Componente tc
             ON c.fk_tipoComponente = tc.id
